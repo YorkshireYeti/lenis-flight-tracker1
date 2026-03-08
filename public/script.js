@@ -26,6 +26,21 @@ minute:"2-digit"
 
 }
 
+function calculateBearing(lat1,lon1,lat2,lon2){
+
+const toRad = d => d*Math.PI/180;
+const toDeg = r => r*180/Math.PI;
+
+let y = Math.sin(toRad(lon2-lon1))*Math.cos(toRad(lat2));
+let x = Math.cos(toRad(lat1))*Math.sin(toRad(lat2))-
+Math.sin(toRad(lat1))*Math.cos(toRad(lat2))*Math.cos(toRad(lon2-lon1));
+
+let brng = toDeg(Math.atan2(y,x));
+
+return (brng+360)%360;
+
+}
+
 function createPlaneIcon(flightNumber,angle){
 
 return L.divIcon({
@@ -49,29 +64,6 @@ font-size:36px;
 line-height:32px;
 transform:rotate(${angle}deg);
 ">
-✈
-</div>
-</div>
-`,
-iconSize:[70,70],
-iconAnchor:[35,35]
-});
-
-}
-
-
-<div style="text-align:center">
-<div style="
-background:#111;
-color:white;
-padding:4px 10px;
-border-radius:4px;
-font-size:14px;
-margin-bottom:4px;
-display:inline-block;">
-${flightNumber}
-</div>
-<div style="color:red;font-size:36px;line-height:32px;">
 ✈
 </div>
 </div>
@@ -167,9 +159,11 @@ lon=depLon+(arrLon-depLon)*routeProgress;
 
 }
 
+let bearing = calculateBearing(depLat,depLon,arrLat,arrLon);
+
 let marker=L.marker(
 [lat,lon],
-{icon:createPlaneIcon(f.number)}
+{icon:createPlaneIcon(f.number,bearing)}
 ).addTo(map);
 
 markers.push(marker);
@@ -204,4 +198,3 @@ loadHistory();
 
 setInterval(updateFlights,5000);
 setInterval(loadHistory,300000);
-
