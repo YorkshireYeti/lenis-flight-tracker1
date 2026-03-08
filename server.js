@@ -8,7 +8,81 @@ const API_KEY = "e5025315camshdc195fde2ccf1d8p179bc9jsn2d3f77b33509";
 
 app.use(express.static(path.join(__dirname,"public")));
 
-const flights = ["EK28","EK376","EK375","EK27"];
+const routes = {
+
+EK28:{
+number:"EK 28",
+departure:{
+airport:{
+name:"Glasgow",
+location:{lat:55.8719,lon:-4.43306}
+}
+},
+arrival:{
+airport:{
+name:"Dubai",
+location:{lat:25.2528,lon:55.3644}
+}
+},
+departureTime:"2026-03-08T13:35:00Z",
+arrivalTime:"2026-03-08T21:30:00Z"
+},
+
+EK376:{
+number:"EK 376",
+departure:{
+airport:{
+name:"Dubai",
+location:{lat:25.2528,lon:55.3644}
+}
+},
+arrival:{
+airport:{
+name:"Bangkok",
+location:{lat:13.6900,lon:100.7501}
+}
+},
+departureTime:"2026-03-08T22:30:00Z",
+arrivalTime:"2026-03-09T07:35:00Z"
+},
+
+EK375:{
+number:"EK 375",
+departure:{
+airport:{
+name:"Bangkok",
+location:{lat:13.6900,lon:100.7501}
+}
+},
+arrival:{
+airport:{
+name:"Dubai",
+location:{lat:25.2528,lon:55.3644}
+}
+},
+departureTime:"2026-03-09T09:30:00Z",
+arrivalTime:"2026-03-09T13:35:00Z"
+},
+
+EK27:{
+number:"EK 27",
+departure:{
+airport:{
+name:"Dubai",
+location:{lat:25.2528,lon:55.3644}
+}
+},
+arrival:{
+airport:{
+name:"Glasgow",
+location:{lat:55.8719,lon:-4.43306}
+}
+},
+departureTime:"2026-03-09T14:45:00Z",
+arrivalTime:"2026-03-09T19:05:00Z"
+}
+
+};
 
 function loadHistory(){
 
@@ -20,104 +94,40 @@ return JSON.parse(fs.readFileSync("history.json"));
 
 }
 
-function saveHistory(history){
+app.get("/api/flights",(req,res)=>{
 
-fs.writeFileSync("history.json",JSON.stringify(history,null,2));
+let result=[];
 
+for(const key in routes){
+
+let r=routes[key];
+
+result.push({
+
+number:r.number,
+
+status:"Scheduled",
+
+departure:{
+airport:r.departure.airport,
+scheduledTime:{local:r.departureTime}
+},
+
+arrival:{
+airport:r.arrival.airport,
+scheduledTime:{local:r.arrivalTime}
 }
-
-async function getFlight(flight){
-
-try{
-
-const res = await fetch(
-`https://aerodatabox.p.rapidapi.com/flights/number/${flight}?withLocation=true`,
-{
-headers:{
-"X-RapidAPI-Key":API_KEY,
-"X-RapidAPI-Host":"aerodatabox.p.rapidapi.com"
-}
-}
-);
-
-const data = await res.json();
-
-if(Array.isArray(data) && data.length>0){
-return data[0];
-}
-
-return null;
-
-}catch(e){
-
-console.log("API error:",flight,e);
-return null;
-
-}
-
-}
-
-app.get("/api/flights", async (req,res)=>{
-
-let results=[];
-
-for(let flight of flights){
-
-let f = await getFlight(flight);
-
-if(f){
-results.push(f);
-}
-
-}
-
-res.json(results);
 
 });
 
-async function updateHistory(){
-
-let history = loadHistory();
-
-for(let flight of flights){
-
-let f = await getFlight(flight);
-
-if(!f) continue;
-
-let status = f.status || "unknown";
-
-let lastEntry = [...history].reverse().find(h => h.flight === f.number);
-
-if(lastEntry && lastEntry.status === status){
-continue;
 }
 
-history.push({
-
-time:new Date().toISOString(),
-flight:f.number,
-status:status
+res.json(result);
 
 });
-
-console.log("Logged change:",f.number,status);
-
-}
-
-saveHistory(history);
-
-}
 
 app.get("/history",(req,res)=>{
 res.json(loadHistory());
-});
-
-updateHistory();
-setInterval(updateHistory,300000);
-
-app.get("/",(req,res)=>{
-res.sendFile(path.join(__dirname,"public","index.html"));
 });
 
 const PORT = process.env.PORT || 3000;
