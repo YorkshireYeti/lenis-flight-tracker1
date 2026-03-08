@@ -4,8 +4,6 @@ const path = require("path");
 
 const app = express();
 
-const API_KEY = "e5025315camshdc195fde2ccf1d8p179bc9jsn2d3f77b33509";
-
 app.use(express.static(path.join(__dirname,"public")));
 
 const routes = {
@@ -46,8 +44,6 @@ arrivalTime:"19:05"
 
 function buildTodayTime(time){
 
-let now=new Date();
-
 let parts=time.split(":");
 
 let d=new Date();
@@ -57,6 +53,36 @@ d.setUTCMinutes(parseInt(parts[1]));
 d.setUTCSeconds(0);
 
 return d;
+
+}
+
+function getFlightTimes(dep,arr){
+
+let depTime=buildTodayTime(dep);
+let arrTime=buildTodayTime(arr);
+
+if(arrTime.getTime()<depTime.getTime()){
+arrTime.setUTCDate(arrTime.getUTCDate()+1);
+}
+
+return {depTime,arrTime};
+
+}
+
+function calculateStatus(dep,arr){
+
+let now=Date.now();
+
+let times=getFlightTimes(dep,arr);
+
+let depMs=times.depTime.getTime();
+let arrMs=times.arrTime.getTime();
+
+if(now<depMs) return "Scheduled";
+
+if(now>=depMs && now<=arrMs) return "In Progress";
+
+if(now>arrMs) return "Completed";
 
 }
 
@@ -76,56 +102,7 @@ fs.writeFileSync("history.json",JSON.stringify(history,null,2));
 
 }
 
-function calculateStatus(dep,arr){
-
-let now=Date.now();
-
-let depMs=buildTodayTime(dep).getTime();
-let arrMs=buildTodayTime(arr).getTime();
-
-if(now < depMs) return "Scheduled";
-
-if(now >= depMs && now <= arrMs) return "In Progress";
-
-if(now > arrMs) return "Completed";
-
-}
-
-async function checkCancellation(flight){
-
-try{
-
-const res = await fetch(
-`https://aerodatabox.p.rapidapi.com/flights/number/${flight}?withLocation=false`,
-{
-headers:{
-"X-RapidAPI-Key":API_KEY,
-"X-RapidAPI-Host":"aerodatabox.p.rapidapi.com"
-}
-}
-);
-
-const data=await res.json();
-
-if(Array.isArray(data) && data.length>0){
-
-if(data[0].status==="Canceled"){
-return "Canceled";
-}
-
-}
-
-}catch(e){
-
-console.log("API error",flight);
-
-}
-
-return null;
-
-}
-
-async function updateHistory(){
+function updateHistory(){
 
 let history=loadHistory();
 
@@ -133,13 +110,11 @@ for(const key in routes){
 
 let r=routes[key];
 
-let apiStatus=await checkCancellation(key);
+let status=calculateStatus(r.departureTime,r.arrivalTime);
 
-let status=apiStatus || calculateStatus(r.departureTime,r.arrivalTime);
+let last=[...history].reverse().find(h=>h.flight===r.number);
 
-let lastEntry=[...history].reverse().find(h=>h.flight===r.number);
-
-if(lastEntry && lastEntry.status===status) continue;
+if(last && last.status===status) continue;
 
 history.push({
 time:new Date().toISOString(),
@@ -163,8 +138,7 @@ for(const key in routes){
 
 let r=routes[key];
 
-let depTime=buildTodayTime(r.departureTime);
-let arrTime=buildTodayTime(r.arrivalTime);
+let times=getFlightTimes(r.departureTime,r.arrivalTime);
 
 let status=calculateStatus(r.departureTime,r.arrivalTime);
 
@@ -176,12 +150,12 @@ status:status,
 
 departure:{
 airport:r.departure.airport,
-scheduledTime:{local:depTime}
+scheduledTime:{local:times.depTime}
 },
 
 arrival:{
 airport:r.arrival.airport,
-scheduledTime:{local:arrTime}
+scheduledTime:{local:times.arrTime}
 }
 
 });
