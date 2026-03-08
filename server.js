@@ -33,7 +33,7 @@ const today = new Date().toISOString().split("T")[0];
 try{
 
 const res = await fetch(
-`https://aerodatabox.p.rapidapi.com/flights/number/${flight}/${today}?withLocation=true`,
+`https://aerodatabox.p.rapidapi.com/flights/number/${flight}?withLocation=true`,,
 {
 headers:{
 "X-RapidAPI-Key":API_KEY,
@@ -128,3 +128,4 @@ app.listen(PORT,()=>{
 console.log("Leni's Flight Tracker running");
 console.log("Server running on port:",PORT);
 });
+
