@@ -26,11 +26,39 @@ minute:"2-digit"
 
 }
 
-function createPlaneIcon(flightNumber){
+function createPlaneIcon(flightNumber,angle){
 
 return L.divIcon({
 className:"",
 html:`
+
+<div style="text-align:center">
+<div style="
+background:#111;
+color:white;
+padding:4px 10px;
+border-radius:4px;
+font-size:14px;
+margin-bottom:4px;
+display:inline-block;">
+${flightNumber}
+</div>
+<div style="
+color:red;
+font-size:36px;
+line-height:32px;
+transform:rotate(${angle}deg);
+">
+✈
+</div>
+</div>
+`,
+iconSize:[70,70],
+iconAnchor:[35,35]
+});
+
+}
+
 
 <div style="text-align:center">
 <div style="
@@ -176,3 +204,4 @@ loadHistory();
 
 setInterval(updateFlights,5000);
 setInterval(loadHistory,300000);
+
