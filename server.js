@@ -1,11 +1,12 @@
 const express = require("express");
 const fs = require("fs");
+const path = require("path");
 
 const app = express();
 
-const API_KEY = "e5025315camshdc195fde2ccf1d8p179bc9jsn2d3f77b33509";
+const API_KEY = process.env.API_KEY || "YOUR_API_KEY_HERE";
 
-app.use(express.static("public"));
+app.use(express.static(path.join(__dirname, "public")));
 
 const flights = ["EK28","EK376","EK375","EK27"];
 
@@ -20,9 +21,7 @@ return JSON.parse(fs.readFileSync("history.json"));
 }
 
 function saveHistory(history){
-
 fs.writeFileSync("history.json",JSON.stringify(history,null,2));
-
 }
 
 async function getFlight(flight){
@@ -111,19 +110,18 @@ saveHistory(history);
 }
 
 app.get("/history",(req,res)=>{
-
 res.json(loadHistory());
-
 });
 
 updateHistory();
 setInterval(updateHistory,300000);
 
+app.get("/",(req,res)=>{
+res.sendFile(path.join(__dirname,"public","index.html"));
+});
+
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT,()=>{
-
-console.log("Leni's Flight Tracker running");
 console.log("Server running on port:",PORT);
-
 });
