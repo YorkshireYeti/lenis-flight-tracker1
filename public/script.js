@@ -1,9 +1,8 @@
 const map = L.map("map").setView([40,10],3);
 
-L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
-subdomains: "abcd",
-maxZoom: 19
+L.tileLayer("https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}{r}.png", {
+attribution: '&copy; OpenStreetMap contributors &copy; Stadia Maps',
+maxZoom: 20
 }).addTo(map);
 
 let markers=[];
@@ -200,4 +199,5 @@ loadHistory();
 
 setInterval(updateFlights,5000);
 setInterval(loadHistory,300000);
+
 
