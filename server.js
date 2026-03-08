@@ -4,7 +4,7 @@ const path = require("path");
 
 const app = express();
 
-const API_KEY = process.env.API_KEY || "e5025315camshdc195fde2ccf1d8p179bc9jsn2d3f77b33509";
+const API_KEY = "e5025315camshdc195fde2ccf1d8p179bc9jsn2d3f77b33509";
 
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -21,7 +21,9 @@ return JSON.parse(fs.readFileSync("history.json"));
 }
 
 function saveHistory(history){
+
 fs.writeFileSync("history.json",JSON.stringify(history,null,2));
+
 }
 
 async function getFlight(flight){
@@ -123,6 +125,6 @@ res.sendFile(path.join(__dirname,"public","index.html"));
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT,()=>{
+console.log("Leni's Flight Tracker running");
 console.log("Server running on port:",PORT);
 });
-
