@@ -6,7 +6,7 @@ const app = express();
 
 const API_KEY = "e5025315camshdc195fde2ccf1d8p179bc9jsn2d3f77b33509";
 
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(path.join(__dirname,"public")));
 
 const flights = ["EK28","EK376","EK375","EK27"];
 
@@ -28,12 +28,10 @@ fs.writeFileSync("history.json",JSON.stringify(history,null,2));
 
 async function getFlight(flight){
 
-const today = new Date().toISOString().split("T")[0];
-
 try{
 
 const res = await fetch(
-`https://aerodatabox.p.rapidapi.com/flights/number/${flight}?withLocation=true`,,
+`https://aerodatabox.p.rapidapi.com/flights/number/${flight}?withLocation=true`,
 {
 headers:{
 "X-RapidAPI-Key":API_KEY,
@@ -52,7 +50,7 @@ return null;
 
 }catch(e){
 
-console.log("API error:",flight);
+console.log("API error:",flight,e);
 return null;
 
 }
@@ -125,7 +123,8 @@ res.sendFile(path.join(__dirname,"public","index.html"));
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT,()=>{
+
 console.log("Leni's Flight Tracker running");
 console.log("Server running on port:",PORT);
-});
 
+});
