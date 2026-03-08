@@ -4,7 +4,7 @@ const path = require("path");
 
 const app = express();
 
-const API_KEY = process.env.API_KEY || "YOUR_API_KEY_HERE";
+const API_KEY = process.env.API_KEY || "e5025315camshdc195fde2ccf1d8p179bc9jsn2d3f77b33509";
 
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -125,3 +125,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT,()=>{
 console.log("Server running on port:",PORT);
 });
+
