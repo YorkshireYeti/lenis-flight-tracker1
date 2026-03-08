@@ -4,91 +4,26 @@ const path = require("path");
 
 const app = express();
 
+const API_KEY = "e5025315camshdc195fde2ccf1d8p179bc9jsn2d3f77b33509";
+
 app.use(express.static(path.join(__dirname,"public")));
 
-const routes = {
+const airports = {
 
-EK28:{
-number:"EK 28",
-timezone:0,
-departure:{airport:{name:"Glasgow",location:{lat:55.8719,lon:-4.43306}}},
-arrival:{airport:{name:"Dubai",location:{lat:25.2528,lon:55.3644}}},
-departureTime:"13:35",
-arrivalTime:"21:30"
-},
-
-EK376:{
-number:"EK 376",
-timezone:4,
-departure:{airport:{name:"Dubai",location:{lat:25.2528,lon:55.3644}}},
-arrival:{airport:{name:"Bangkok",location:{lat:13.6900,lon:100.7501}}},
-departureTime:"22:30",
-arrivalTime:"07:35"
-},
-
-EK375:{
-number:"EK 375",
-timezone:7,
-departure:{airport:{name:"Bangkok",location:{lat:13.6900,lon:100.7501}}},
-arrival:{airport:{name:"Dubai",location:{lat:25.2528,lon:55.3644}}},
-departureTime:"09:30",
-arrivalTime:"13:35"
-},
-
-EK27:{
-number:"EK 27",
-timezone:4,
-departure:{airport:{name:"Dubai",location:{lat:25.2528,lon:55.3644}}},
-arrival:{airport:{name:"Glasgow",location:{lat:55.8719,lon:-4.43306}}},
-departureTime:"14:45",
-arrivalTime:"19:05"
-}
+GLA:{name:"Glasgow",lat:55.8719,lon:-4.43306},
+DXB:{name:"Dubai",lat:25.2528,lon:55.3644},
+BKK:{name:"Bangkok",lat:13.6900,lon:100.7501}
 
 };
 
-function buildTodayTime(time,offset){
+const routes = {
 
-let parts=time.split(":");
+EK28:{from:"GLA",to:"DXB"},
+EK376:{from:"DXB",to:"BKK"},
+EK375:{from:"BKK",to:"DXB"},
+EK27:{from:"DXB",to:"GLA"}
 
-let d=new Date();
-
-d.setUTCHours(parseInt(parts[0]) - offset);
-d.setUTCMinutes(parseInt(parts[1]));
-d.setUTCSeconds(0);
-
-return d;
-
-}
-
-function getFlightTimes(route){
-
-let depTime = buildTodayTime(route.departureTime,route.timezone);
-let arrTime = buildTodayTime(route.arrivalTime,route.timezone);
-
-if(arrTime.getTime() < depTime.getTime()){
-arrTime.setUTCDate(arrTime.getUTCDate()+1);
-}
-
-return {depTime,arrTime};
-
-}
-
-function calculateStatus(route){
-
-let now = Date.now();
-
-let times = getFlightTimes(route);
-
-let depMs = times.depTime.getTime();
-let arrMs = times.arrTime.getTime();
-
-if(now < depMs) return "Scheduled";
-
-if(now >= depMs && now <= arrMs) return "In Progress";
-
-if(now > arrMs) return "Completed";
-
-}
+};
 
 function loadHistory(){
 
@@ -106,27 +41,62 @@ fs.writeFileSync("history.json",JSON.stringify(history,null,2));
 
 }
 
-function updateHistory(){
+async function getFlight(flight){
 
-let history = loadHistory();
+try{
 
-for(const key in routes){
+const today=new Date().toISOString().split("T")[0];
 
-let r = routes[key];
+const res=await fetch(
+`https://aerodatabox.p.rapidapi.com/flights/number/${flight}/${today}?withLocation=false`,
+{
+headers:{
+"X-RapidAPI-Key":API_KEY,
+"X-RapidAPI-Host":"aerodatabox.p.rapidapi.com"
+}
+}
+);
 
-let status = calculateStatus(r);
+const data=await res.json();
 
-let last=[...history].reverse().find(h=>h.flight===r.number);
+if(Array.isArray(data) && data.length>0){
+return data[0];
+}
+
+return null;
+
+}catch(e){
+
+console.log("API error:",flight,e);
+return null;
+
+}
+
+}
+
+async function updateHistory(){
+
+let history=loadHistory();
+
+for(const flight in routes){
+
+let api=await getFlight(flight);
+
+if(!api) continue;
+
+let status=api.status;
+
+let last=[...history].reverse().find(h=>h.flight===api.number);
 
 if(last && last.status===status) continue;
 
 history.push({
 time:new Date().toISOString(),
-flight:r.number,
+flight:api.number,
 status:status
 });
 
-console.log("Logged:",r.number,status);
+console.log("Logged:",api.number,status);
 
 }
 
@@ -134,32 +104,51 @@ saveHistory(history);
 
 }
 
-app.get("/api/flights",(req,res)=>{
+app.get("/api/flights",async(req,res)=>{
 
 let result=[];
 
-for(const key in routes){
+for(const flight in routes){
 
-let r = routes[key];
+let api=await getFlight(flight);
 
-let times = getFlightTimes(r);
+if(!api) continue;
 
-let status = calculateStatus(r);
+let route=routes[flight];
+
+let depAirport=airports[route.from];
+let arrAirport=airports[route.to];
 
 result.push({
 
-number:r.number,
+number:api.number,
 
-status:status,
+status:api.status,
 
 departure:{
-airport:r.departure.airport,
-scheduledTime:{local:times.depTime}
+airport:{
+name:depAirport.name,
+location:{
+lat:depAirport.lat,
+lon:depAirport.lon
+}
+},
+scheduledTime:{
+local:api.departure.scheduledTime.local
+}
 },
 
 arrival:{
-airport:r.arrival.airport,
-scheduledTime:{local:times.arrTime}
+airport:{
+name:arrAirport.name,
+location:{
+lat:arrAirport.lat,
+lon:arrAirport.lon
+}
+},
+scheduledTime:{
+local:api.arrival.scheduledTime.local
+}
 }
 
 });
