@@ -4,6 +4,8 @@ const path = require("path");
 
 const app = express();
 
+const API_KEY = "e5025315camshdc195fde2ccf1d8p179bc9jsn2d3f77b33509";
+
 app.use(express.static(path.join(__dirname,"public")));
 
 const airports={
@@ -12,98 +14,78 @@ DXB:{name:"Dubai",lat:25.2528,lon:55.3644},
 BKK:{name:"Bangkok",lat:13.6900,lon:100.7501}
 };
 
-const schedule={
-
-EK28:{from:"GLA",to:"DXB",dep:"14:35",arr:"21:00"},
-EK376:{from:"DXB",to:"BKK",dep:"22:35",arr:"07:40"},
-EK375:{from:"BKK",to:"DXB",dep:"09:30",arr:"13:30"},
-EK27:{from:"DXB",to:"GLA",dep:"14:15",arr:"18:45"}
-
+const routes={
+EK28:{from:"GLA",to:"DXB"},
+EK376:{from:"DXB",to:"BKK"},
+EK375:{from:"BKK",to:"DXB"},
+EK27:{from:"DXB",to:"GLA"}
 };
 
-function createTime(time){
-
-let parts=time.split(":");
-
-let now=new Date();
-
-let d=new Date(Date.UTC(
-now.getUTCFullYear(),
-now.getUTCMonth(),
-now.getUTCDate(),
-parseInt(parts[0]),
-parseInt(parts[1]),
-0
-));
-
-return d;
-
-}
-
-function getTimes(dep,arr){
-
-let depTime=createTime(dep);
-let arrTime=createTime(arr);
-
-if(arrTime<depTime){
-arrTime.setUTCDate(arrTime.getUTCDate()+1);
-}
-
-return{depTime,arrTime};
-
-}
-
-function getStatus(dep,arr){
-
-let now=Date.now();
-
-let t=getTimes(dep,arr);
-
-if(now<t.depTime) return "Scheduled";
-
-if(now>=t.depTime && now<=t.arrTime) return "In Progress";
-
-return "Completed";
-
-}
-
 function loadHistory(){
-
-if(!fs.existsSync("history.json")){
-return [];
-}
-
+if(!fs.existsSync("history.json")) return [];
 return JSON.parse(fs.readFileSync("history.json"));
-
 }
 
 function saveHistory(history){
-
 fs.writeFileSync("history.json",JSON.stringify(history,null,2));
+}
+
+async function getFlightData(flight){
+
+try{
+
+const today=new Date().toISOString().split("T")[0];
+
+const res=await fetch(
+`https://aerodatabox.p.rapidapi.com/flights/number/${flight}/${today}?withLocation=false`,
+{
+headers:{
+"X-RapidAPI-Key":API_KEY,
+"X-RapidAPI-Host":"aerodatabox.p.rapidapi.com"
+}
+}
+);
+
+const data=await res.json();
+
+if(Array.isArray(data) && data.length>0){
+return data[0];
+}
+
+return null;
+
+}catch(e){
+
+console.log("API error:",flight);
+return null;
 
 }
 
-function updateHistory(){
+}
+
+async function updateHistory(){
 
 let history=loadHistory();
 
-for(const flight in schedule){
+for(const flight in routes){
 
-let s=schedule[flight];
+let api=await getFlightData(flight);
 
-let status=getStatus(s.dep,s.arr);
+if(!api) continue;
 
-let last=[...history].reverse().find(h=>h.flight===flight);
+let status=api.status;
+
+let last=[...history].reverse().find(h=>h.flight===api.number);
 
 if(last && last.status===status) continue;
 
 history.push({
 time:new Date().toISOString(),
-flight:flight,
+flight:api.number,
 status:status
 });
 
-console.log("Logged:",flight,status);
+console.log("Logged:",api.number,status);
 
 }
 
@@ -111,43 +93,51 @@ saveHistory(history);
 
 }
 
-app.get("/api/flights",(req,res)=>{
+app.get("/api/flights",async(req,res)=>{
 
 let result=[];
 
-for(const flight in schedule){
+for(const flight in routes){
 
-let s=schedule[flight];
+let api=await getFlightData(flight);
 
-let times=getTimes(s.dep,s.arr);
+if(!api) continue;
 
-let status=getStatus(s.dep,s.arr);
+let route=routes[flight];
+
+let depAirport=airports[route.from];
+let arrAirport=airports[route.to];
 
 result.push({
 
-number:flight,
-status:status,
+number:api.number,
+
+status:api.status,
 
 departure:{
 airport:{
-name:airports.name,
+name:depAirport.name,
 location:{
-lat:airports.lat,
-lon:airports.lon
+lat:depAirport.lat,
+lon:depAirport.lon
 }
 },
-scheduledTime:{local:times.depTime}
+scheduledTime:{
+local:api.departure.scheduledTime.local
+}
 },
 
 arrival:{
 airport:{
-name:airports.name,
+name:arrAirport.name,
 location:{
-lat:airports.lat,
-lon:airports.lon
+lat:arrAirport.lat,
+lon:arrAirport.lon
 }
 },
-scheduledTime:{local:times.arrTime}
+scheduledTime:{
+local:api.arrival.scheduledTime.local
+}
 }
 
 });
