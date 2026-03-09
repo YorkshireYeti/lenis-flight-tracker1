@@ -14,30 +14,19 @@ DXB:{name:"Dubai",lat:25.2528,lon:55.3644},
 BKK:{name:"Bangkok",lat:13.6900,lon:100.7501}
 };
 
-const routes={
-EK28:{from:"GLA",to:"DXB"},
-EK376:{from:"DXB",to:"BKK"},
-EK375:{from:"BKK",to:"DXB"},
-EK27:{from:"DXB",to:"GLA"}
-};
+const trackedFlights=["EK27","EK28","EK375","EK376"];
 
-function loadHistory(){
-if(!fs.existsSync("history.json")) return [];
-return JSON.parse(fs.readFileSync("history.json"));
-}
-
-function saveHistory(history){
-fs.writeFileSync("history.json",JSON.stringify(history,null,2));
-}
-
-async function getFlightData(flight){
+async function getAirportFlights(iata){
 
 try{
 
-const today=new Date().toISOString().split("T")[0];
+let now=new Date();
+
+let start=new Date(now.getTime()-6*60*60*1000).toISOString();
+let end=new Date(now.getTime()+24*60*60*1000).toISOString();
 
 const res=await fetch(
-`https://aerodatabox.p.rapidapi.com/flights/number/${flight}/${today}?withLocation=false`,
+`https://aerodatabox.p.rapidapi.com/flights/airports/iata/${iata}/${start}/${end}?withLocation=false`,
 {
 headers:{
 "X-RapidAPI-Key":API_KEY,
@@ -48,18 +37,54 @@ headers:{
 
 const data=await res.json();
 
-if(Array.isArray(data) && data.length>0){
-return data[0];
-}
-
-return null;
+return data.departures || [];
 
 }catch(e){
 
-console.log("API error:",flight);
-return null;
+console.log("Airport API error:",iata);
+return [];
 
 }
+
+}
+
+async function findTrackedFlights(){
+
+let airportsToCheck=["GLA","DXB","BKK"];
+
+let found=[];
+
+for(const airport of airportsToCheck){
+
+let flights=await getAirportFlights(airport);
+
+for(const f of flights){
+
+if(trackedFlights.includes(f.number)){
+
+found.push(f);
+
+}
+
+}
+
+}
+
+return found;
+
+}
+
+function loadHistory(){
+
+if(!fs.existsSync("history.json")) return [];
+
+return JSON.parse(fs.readFileSync("history.json"));
+
+}
+
+function saveHistory(history){
+
+fs.writeFileSync("history.json",JSON.stringify(history,null,2));
 
 }
 
@@ -67,25 +92,21 @@ async function updateHistory(){
 
 let history=loadHistory();
 
-for(const flight in routes){
+let flights=await findTrackedFlights();
 
-let api=await getFlightData(flight);
+for(const f of flights){
 
-if(!api) continue;
+let last=[...history].reverse().find(h=>h.flight===f.number);
 
-let status=api.status;
-
-let last=[...history].reverse().find(h=>h.flight===api.number);
-
-if(last && last.status===status) continue;
+if(last && last.status===f.status) continue;
 
 history.push({
 time:new Date().toISOString(),
-flight:api.number,
-status:status
+flight:f.number,
+status:f.status
 });
 
-console.log("Logged:",api.number,status);
+console.log("Logged:",f.number,f.status);
 
 }
 
@@ -95,24 +116,21 @@ saveHistory(history);
 
 app.get("/api/flights",async(req,res)=>{
 
+let flights=await findTrackedFlights();
+
 let result=[];
 
-for(const flight in routes){
+for(const f of flights){
 
-let api=await getFlightData(flight);
+let depAirport=airports[f.departure.airport.iata] || null;
+let arrAirport=airports[f.arrival.airport.iata] || null;
 
-if(!api) continue;
-
-let route=routes[flight];
-
-let depAirport=airports[route.from];
-let arrAirport=airports[route.to];
+if(!depAirport || !arrAirport) continue;
 
 result.push({
 
-number:api.number,
-
-status:api.status,
+number:f.number,
+status:f.status,
 
 departure:{
 airport:{
@@ -123,7 +141,7 @@ lon:depAirport.lon
 }
 },
 scheduledTime:{
-local:api.departure.scheduledTime.local
+local:f.departure.scheduledTime.local
 }
 },
 
@@ -136,7 +154,7 @@ lon:arrAirport.lon
 }
 },
 scheduledTime:{
-local:api.arrival.scheduledTime.local
+local:f.arrival.scheduledTime.local
 }
 }
 
