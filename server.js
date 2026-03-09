@@ -4,7 +4,7 @@ const path = require("path");
 
 const app = express();
 
-const API_KEY = "e5025315camshdc195fde2ccf1d8p179bc9jsn2d3f77b33509";
+const API_KEY = "e5-25315camshdc195fde2ccf1d8p179bc9jsn2d3f77b33509";
 
 app.use(express.static(path.join(__dirname,"public")));
 
@@ -178,3 +178,4 @@ const PORT=process.env.PORT||3000;
 app.listen(PORT,()=>{
 console.log("Leni's Flight Tracker running");
 });
+
