@@ -1,121 +1,74 @@
-const express = require("express");
-const path = require("path");
-const fs = require("fs");
+const map = L.map("map").setView([25,40],3);
 
-const app = express();
+L.tileLayer("https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}{r}.png",{
+maxZoom:20
+}).addTo(map);
 
-const OPENSKY_USER = "[lukemartin2804@gmail.com](mailto:lukemartin2804@gmail.com)";
-const OPENSKY_PASS = process.env.OPENSKY_PASS;
+let markers=[];
 
-app.use(express.static(path.join(__dirname,"public")));
-
-const callsigns = ["UAE28","UAE376","UAE375","UAE27"];
-
-function loadLog(){
-if(!fs.existsSync("journeylog.json")) return [];
-return JSON.parse(fs.readFileSync("journeylog.json"));
+function clearMarkers(){
+markers.forEach(m=>map.removeLayer(m));
+markers=[];
 }
 
-function saveLog(log){
-fs.writeFileSync("journeylog.json",JSON.stringify(log,null,2));
+function createPlaneIcon(flight){
+
+return L.divIcon({
+className:"",
+html:`
+
+<div style="text-align:center">
+<div style="
+background:black;
+color:white;
+padding:3px 8px;
+border-radius:4px;
+font-size:13px;
+margin-bottom:4px;
+display:inline-block;">
+${flight}
+</div>
+<div style="color:red;font-size:34px;">✈</div>
+</div>
+`,
+iconSize:[60,60],
+iconAnchor:[30,30]
+});
+
 }
 
-async function getAircraft(){
+async function updateFlights(){
 
-try{
-
-const res = await fetch(
-"https://opensky-network.org/api/states/all",
-{
-headers:{
-"Authorization":
-"Basic "+Buffer.from(OPENSKY_USER+":"+OPENSKY_PASS).toString("base64")
-}
-}
-);
+const res = await fetch("https://opensky-network.org/api/states/all");
 
 const data = await res.json();
 
-return data.states || [];
+clearMarkers();
 
-}catch(e){
+let flights = ["UAE28","UAE376","UAE375","UAE27"];
 
-console.log("OpenSky API error");
+data.states.forEach(s=>{
 
-return [];
+let callsign = s[1] ? s[1].trim() : "";
 
-}
+if(!flights.includes(callsign)) return;
 
-}
+let lat = s[6];
+let lon = s[5];
 
-app.get("/api/flights",async(req,res)=>{
+if(!lat || !lon) return;
 
-let states = await getAircraft();
+let marker = L.marker(
+[lat,lon],
+{icon:createPlaneIcon(callsign.replace("UAE","EK"))}
+).addTo(map);
 
-let flights=[];
-
-callsigns.forEach(call =>{
-
-let plane = states.find(s =>
-s[1] && s[1].trim() === call
-);
-
-if(plane){
-
-flights.push({
-
-number:call.replace("UAE","EK"),
-lat:plane,
-lon:plane,
-altitude:plane,
-velocity:plane,
-status:"active"
-
-});
-
-}else{
-
-flights.push({
-
-number:call.replace("UAE","EK"),
-status:"not_airborne"
+markers.push(marker);
 
 });
 
 }
 
-});
+updateFlights();
 
-res.json(flights);
-
-});
-
-app.get("/journeylog",(req,res)=>{
-res.json(loadLog());
-});
-
-app.get("/stats",(req,res)=>{
-
-let log = loadLog();
-
-let completed = log.filter(l=>l.status==="completed").length;
-let cancelled = log.filter(l=>l.status==="cancelled").length;
-
-let total = completed + cancelled;
-
-let success = total>0 ? Math.round((completed/total)*100) : 0;
-
-res.json({
-completed,
-cancelled,
-success,
-total
-});
-
-});
-
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT,()=>{
-console.log("Leni's Flight Tracker running");
-});
+setInterval(updateFlights,10000);
