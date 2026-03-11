@@ -1,136 +1,80 @@
 const express = require("express");
-const fs = require("fs");
 const path = require("path");
 
 const app = express();
 
-const API_KEY = "e5-25315camshdc195fde2ccf1d8p179bc9jsn2d3f77b33509";
+const API_KEY = "4e045393f0cd4f984be5368a93fe17fb";
 
 app.use(express.static(path.join(__dirname,"public")));
 
-const airports={
+const airports = {
 GLA:{name:"Glasgow",lat:55.8719,lon:-4.43306},
 DXB:{name:"Dubai",lat:25.2528,lon:55.3644},
 BKK:{name:"Bangkok",lat:13.6900,lon:100.7501}
 };
 
-const trackedFlights=["EK27","EK28","EK375","EK376"];
+const routes = {
+EK28:{from:"GLA",to:"DXB"},
+EK376:{from:"DXB",to:"BKK"},
+EK375:{from:"BKK",to:"DXB"},
+EK27:{from:"DXB",to:"GLA"}
+};
 
-async function getAirportFlights(iata){
+async function getFlight(flight){
 
 try{
 
-let now=new Date();
-
-let start=new Date(now.getTime()-6*60*60*1000).toISOString();
-let end=new Date(now.getTime()+24*60*60*1000).toISOString();
-
-const res=await fetch(
-`https://aerodatabox.p.rapidapi.com/flights/airports/iata/${iata}/${start}/${end}?withLocation=false`,
-{
-headers:{
-"X-RapidAPI-Key":API_KEY,
-"X-RapidAPI-Host":"aerodatabox.p.rapidapi.com"
-}
-}
+const res = await fetch(
+`http://api.aviationstack.com/v1/flights?access_key=${API_KEY}&flight_iata=${flight}`
 );
 
-const data=await res.json();
+const data = await res.json();
 
-return data.departures || [];
+if(data.data && data.data.length>0){
+return data.data[0];
+}
+
+return null;
 
 }catch(e){
 
-console.log("Airport API error:",iata);
-return [];
+console.log("API error",flight);
+return null;
 
 }
-
-}
-
-async function findTrackedFlights(){
-
-let airportsToCheck=["GLA","DXB","BKK"];
-
-let found=[];
-
-for(const airport of airportsToCheck){
-
-let flights=await getAirportFlights(airport);
-
-for(const f of flights){
-
-if(trackedFlights.includes(f.number)){
-
-found.push(f);
-
-}
-
-}
-
-}
-
-return found;
-
-}
-
-function loadHistory(){
-
-if(!fs.existsSync("history.json")) return [];
-
-return JSON.parse(fs.readFileSync("history.json"));
-
-}
-
-function saveHistory(history){
-
-fs.writeFileSync("history.json",JSON.stringify(history,null,2));
-
-}
-
-async function updateHistory(){
-
-let history=loadHistory();
-
-let flights=await findTrackedFlights();
-
-for(const f of flights){
-
-let last=[...history].reverse().find(h=>h.flight===f.number);
-
-if(last && last.status===f.status) continue;
-
-history.push({
-time:new Date().toISOString(),
-flight:f.number,
-status:f.status
-});
-
-console.log("Logged:",f.number,f.status);
-
-}
-
-saveHistory(history);
 
 }
 
 app.get("/api/flights",async(req,res)=>{
 
-let flights=await findTrackedFlights();
-
 let result=[];
 
-for(const f of flights){
+for(const flight in routes){
 
-let depAirport=airports[f.departure.airport.iata] || null;
-let arrAirport=airports[f.arrival.airport.iata] || null;
+let api = await getFlight(flight);
 
-if(!depAirport || !arrAirport) continue;
+let route = routes[flight];
+
+let depAirport = airports[route.from];
+let arrAirport = airports[route.to];
+
+let status="Scheduled";
+let depTime=null;
+let arrTime=null;
+
+if(api){
+
+status = api.flight_status;
+
+depTime = api.departure?.scheduled;
+arrTime = api.arrival?.scheduled;
+
+}
 
 result.push({
 
-number:f.number,
-status:f.status,
+number:flight,
+status:status,
 
 departure:{
 airport:{
@@ -140,9 +84,7 @@ lat:depAirport.lat,
 lon:depAirport.lon
 }
 },
-scheduledTime:{
-local:f.departure.scheduledTime.local
-}
+scheduledTime:{local:depTime}
 },
 
 arrival:{
@@ -153,9 +95,7 @@ lat:arrAirport.lat,
 lon:arrAirport.lon
 }
 },
-scheduledTime:{
-local:f.arrival.scheduledTime.local
-}
+scheduledTime:{local:arrTime}
 }
 
 });
@@ -166,16 +106,31 @@ res.json(result);
 
 });
 
-app.get("/history",(req,res)=>{
-res.json(loadHistory());
+app.get("/nextflight",async(req,res)=>{
+
+for(const flight of ["EK28","EK376","EK375","EK27"]){
+
+let api = await getFlight(flight);
+
+if(api){
+
+return res.json({
+flight:flight,
+from:routes.from,
+to:routes.to,
+time:api.departure?.scheduled
 });
 
-updateHistory();
-setInterval(updateHistory,60000);
+}
 
-const PORT=process.env.PORT||3000;
+}
+
+res.json(null);
+
+});
+
+const PORT = process.env.PORT || 3000;
 
 app.listen(PORT,()=>{
 console.log("Leni's Flight Tracker running");
 });
-
