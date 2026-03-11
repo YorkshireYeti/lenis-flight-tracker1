@@ -1,5 +1,6 @@
 const express = require("express");
 const path = require("path");
+const fs = require("fs");
 
 const app = express();
 
@@ -19,6 +20,15 @@ EK376:{from:"DXB",to:"BKK"},
 EK375:{from:"BKK",to:"DXB"},
 EK27:{from:"DXB",to:"GLA"}
 };
+
+function loadLog(){
+if(!fs.existsSync("journeylog.json")) return [];
+return JSON.parse(fs.readFileSync("journeylog.json"));
+}
+
+function saveLog(log){
+fs.writeFileSync("journeylog.json",JSON.stringify(log,null,2));
+}
 
 async function getFlight(flight){
 
@@ -45,92 +55,32 @@ return null;
 
 }
 
-app.get("/api/flights",async(req,res)=>{
+async function updateJourneyLog(){
 
-let result=[];
+let log = loadLog();
 
 for(const flight in routes){
 
 let api = await getFlight(flight);
 
-let route = routes[flight];
+if(!api) continue;
 
-let depAirport = airports[route.from];
-let arrAirport = airports[route.to];
+let status = api.flight_status;
 
-let status="Scheduled";
-let depTime=null;
-let arrTime=null;
+if(status !== "landed" && status !== "cancelled") continue;
 
-if(api){
+let date = new Date().toISOString().slice(0,10);
 
-status = api.flight_status;
+let existing = log.find(l=>l.flight===flight && l.date===date);
 
-depTime = api.departure?.scheduled;
-arrTime = api.arrival?.scheduled;
+if(existing) continue;
 
-}
-
-result.push({
-
-number:flight,
-status:status,
-
-departure:{
-airport:{
-name:depAirport.name,
-location:{
-lat:depAirport.lat,
-lon:depAirport.lon
-}
-},
-scheduledTime:{local:depTime}
-},
-
-arrival:{
-airport:{
-name:arrAirport.name,
-location:{
-lat:arrAirport.lat,
-lon:arrAirport.lon
-}
-},
-scheduledTime:{local:arrTime}
-}
-
-});
-
-}
-
-res.json(result);
-
-});
-
-app.get("/nextflight",async(req,res)=>{
-
-for(const flight of ["EK28","EK376","EK375","EK27"]){
-
-let api = await getFlight(flight);
-
-if(api){
-
-return res.json({
+log.push({
 flight:flight,
-from:routes.from,
-to:routes.to,
-time:api.departure?.scheduled
+date:date,
+status:status
 });
 
 }
 
-}
-
-res.json(null);
-
-});
-
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT,()=>{
-console.log("Leni's Flight Tracker running");
-});
+saveLog
