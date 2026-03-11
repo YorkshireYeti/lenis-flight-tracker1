@@ -146,6 +146,26 @@ app.get("/journeylog",(req,res)=>{
 res.json(loadLog());
 });
 
+app.get("/stats",(req,res)=>{
+
+let log = loadLog();
+
+let completed = log.filter(l=>l.status==="landed").length;
+let cancelled = log.filter(l=>l.status==="cancelled").length;
+
+let total = completed + cancelled;
+
+let success = total>0 ? Math.round((completed/total)*100) : 0;
+
+res.json({
+completed,
+cancelled,
+success,
+total
+});
+
+});
+
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT,()=>{
