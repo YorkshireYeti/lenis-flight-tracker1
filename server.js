@@ -4,7 +4,7 @@ const fs = require("fs");
 
 const app = express();
 
-const API_KEY = "4e045393f0cd4f984be5368a93fe17fb";
+const API_KEY = "e5025315camshdc195fde2ccf1d8p179bc9jsn2d3f77b33509";
 
 app.use(express.static(path.join(__dirname,"public")));
 
@@ -173,3 +173,4 @@ console.log("Leni's Flight Tracker running");
 });
 
 setInterval(updateJourneyLog,60000);
+
