@@ -39,22 +39,26 @@ iconAnchor:[30,30]
 
 async function updateFlights(){
 
-const res = await fetch("https://opensky-network.org/api/states/all");
+try{
+
+const res = await fetch(
+"https://corsproxy.io/?https://opensky-network.org/api/states/all"
+);
 
 const data = await res.json();
 
 clearMarkers();
 
-let flights = ["UAE28","UAE376","UAE375","UAE27"];
+let trackedFlights = ["UAE28","UAE376","UAE375","UAE27"];
 
-data.states.forEach(s=>{
+data.states.forEach(state=>{
 
-let callsign = s[1] ? s[1].trim() : "";
+let callsign = state[1] ? state[1].trim() : "";
 
-if(!flights.includes(callsign)) return;
+if(!trackedFlights.includes(callsign)) return;
 
-let lat = s[6];
-let lon = s[5];
+let lat = state[6];
+let lon = state[5];
 
 if(!lat || !lon) return;
 
@@ -66,6 +70,12 @@ let marker = L.marker(
 markers.push(marker);
 
 });
+
+}catch(e){
+
+console.log("Flight data error");
+
+}
 
 }
 
