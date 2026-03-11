@@ -4,6 +4,9 @@ const fs = require("fs");
 
 const app = express();
 
+const OPENSKY_USER = "[lukemartin2804@gmail.com](mailto:lukemartin2804@gmail.com)";
+const OPENSKY_PASS = process.env.OPENSKY_PASS;
+
 app.use(express.static(path.join(__dirname,"public")));
 
 const callsigns = ["UAE28","UAE376","UAE375","UAE27"];
@@ -21,7 +24,15 @@ async function getAircraft(){
 
 try{
 
-const res = await fetch("https://opensky-network.org/api/states/all");
+const res = await fetch(
+"https://opensky-network.org/api/states/all",
+{
+headers:{
+"Authorization":
+"Basic "+Buffer.from(OPENSKY_USER+":"+OPENSKY_PASS).toString("base64")
+}
+}
+);
 
 const data = await res.json();
 
@@ -29,7 +40,7 @@ return data.states || [];
 
 }catch(e){
 
-console.log("OpenSky error");
+console.log("OpenSky API error");
 
 return [];
 
@@ -106,5 +117,5 @@ total
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT,()=>{
-console.log("Flight tracker running");
+console.log("Leni's Flight Tracker running");
 });
