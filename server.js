@@ -4,22 +4,9 @@ const fs = require("fs");
 
 const app = express();
 
-const API_KEY = "e5025315camshdc195fde2ccf1d8p179bc9jsn2d3f77b33509";
-
 app.use(express.static(path.join(__dirname,"public")));
 
-const airports = {
-GLA:{name:"Glasgow",lat:55.8719,lon:-4.43306},
-DXB:{name:"Dubai",lat:25.2528,lon:55.3644},
-BKK:{name:"Bangkok",lat:13.6900,lon:100.7501}
-};
-
-const routes = {
-EK28:{from:"GLA",to:"DXB"},
-EK376:{from:"DXB",to:"BKK"},
-EK375:{from:"BKK",to:"DXB"},
-EK27:{from:"DXB",to:"GLA"}
-};
+const callsigns = ["UAE28","UAE376","UAE375","UAE27"];
 
 function loadLog(){
 if(!fs.existsSync("journeylog.json")) return [];
@@ -30,115 +17,65 @@ function saveLog(log){
 fs.writeFileSync("journeylog.json",JSON.stringify(log,null,2));
 }
 
-async function getFlight(flight){
+async function getAircraft(){
 
 try{
 
-const res = await fetch(
-`http://api.aviationstack.com/v1/flights?access_key=${API_KEY}&flight_iata=${flight}`
-);
+const res = await fetch("https://opensky-network.org/api/states/all");
 
 const data = await res.json();
 
-if(data.data && data.data.length>0){
-return data.data[0];
-}
-
-return null;
+return data.states || [];
 
 }catch(e){
 
-console.log("API error",flight);
-return null;
+console.log("OpenSky error");
+
+return [];
 
 }
-
-}
-
-async function updateJourneyLog(){
-
-let log = loadLog();
-
-for(const flight in routes){
-
-let api = await getFlight(flight);
-
-if(!api) continue;
-
-let status = api.flight_status;
-
-if(status !== "landed" && status !== "cancelled") continue;
-
-let date = new Date().toISOString().slice(0,10);
-
-let existing = log.find(l=>l.flight===flight && l.date===date);
-
-if(existing) continue;
-
-log.push({
-flight:flight,
-date:date,
-status:status
-});
-
-}
-
-saveLog(log);
 
 }
 
 app.get("/api/flights",async(req,res)=>{
 
-let result=[];
+let states = await getAircraft();
 
-for(const flight in routes){
+let flights=[];
 
-let api = await getFlight(flight);
+callsigns.forEach(call =>{
 
-let route = routes[flight];
+let plane = states.find(s =>
+s[1] && s[1].trim() === call
+);
 
-let depAirport = airports[route.from];
-let arrAirport = airports[route.to];
+if(plane){
 
-let status="scheduled";
-let depTime=null;
-let arrTime=null;
+flights.push({
 
-if(api){
+number:call.replace("UAE","EK"),
+lat:plane,
+lon:plane,
+altitude:plane,
+velocity:plane,
+status:"active"
 
-status = api.flight_status;
+});
 
-depTime = api.departure?.scheduled || null;
-arrTime = api.arrival?.scheduled || null;
+}else{
 
-}
+flights.push({
 
-result.push({
-
-number:flight,
-status:status,
-
-departure:{
-airport:{
-name:depAirport.name,
-location:{lat:depAirport.lat,lon:depAirport.lon}
-},
-scheduledTime:{local:depTime}
-},
-
-arrival:{
-airport:{
-name:arrAirport.name,
-location:{lat:arrAirport.lat,lon:arrAirport.lon}
-},
-scheduledTime:{local:arrTime}
-}
+number:call.replace("UAE","EK"),
+status:"not_airborne"
 
 });
 
 }
 
-res.json(result);
+});
+
+res.json(flights);
 
 });
 
@@ -150,7 +87,7 @@ app.get("/stats",(req,res)=>{
 
 let log = loadLog();
 
-let completed = log.filter(l=>l.status==="landed").length;
+let completed = log.filter(l=>l.status==="completed").length;
 let cancelled = log.filter(l=>l.status==="cancelled").length;
 
 let total = completed + cancelled;
@@ -169,8 +106,5 @@ total
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT,()=>{
-console.log("Leni's Flight Tracker running");
+console.log("Flight tracker running");
 });
-
-setInterval(updateJourneyLog,60000);
-
