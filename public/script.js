@@ -11,7 +11,7 @@ markers.forEach(m=>map.removeLayer(m));
 markers=[];
 }
 
-function createPlaneIcon(flight){
+function createPlaneIcon(flight,heading){
 
 return L.divIcon({
 className:"",
@@ -28,7 +28,13 @@ margin-bottom:4px;
 display:inline-block;">
 ${flight}
 </div>
-<div style="color:red;font-size:34px;">✈</div>
+<div style="
+color:red;
+font-size:34px;
+transform:rotate(${heading}deg);
+">
+✈
+</div>
 </div>
 `,
 iconSize:[60,60],
@@ -42,7 +48,7 @@ async function updateFlights(){
 try{
 
 const res = await fetch(
-"https://corsproxy.io/?https://opensky-network.org/api/states/all"
+"https://api.adsbexchange.com/v2/lat/0/lon/0/dist/25000/"
 );
 
 const data = await res.json();
@@ -51,20 +57,20 @@ clearMarkers();
 
 let trackedFlights = ["UAE28","UAE376","UAE375","UAE27"];
 
-data.states.forEach(state=>{
+data.ac.forEach(ac=>{
 
-let callsign = state[1] ? state[1].trim() : "";
+if(!trackedFlights.includes(ac.flight)) return;
 
-if(!trackedFlights.includes(callsign)) return;
-
-let lat = state[6];
-let lon = state[5];
+let lat = ac.lat;
+let lon = ac.lon;
 
 if(!lat || !lon) return;
 
+let heading = ac.track || 0;
+
 let marker = L.marker(
 [lat,lon],
-{icon:createPlaneIcon(callsign.replace("UAE","EK"))}
+{icon:createPlaneIcon(ac.flight.replace("UAE","EK"),heading)}
 ).addTo(map);
 
 markers.push(marker);
@@ -73,7 +79,7 @@ markers.push(marker);
 
 }catch(e){
 
-console.log("Flight data error");
+console.log("Flight fetch error");
 
 }
 
