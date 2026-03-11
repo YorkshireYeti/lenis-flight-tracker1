@@ -83,4 +83,73 @@ status:status
 
 }
 
-saveLog
+saveLog(log);
+
+}
+
+app.get("/api/flights",async(req,res)=>{
+
+let result=[];
+
+for(const flight in routes){
+
+let api = await getFlight(flight);
+
+let route = routes[flight];
+
+let depAirport = airports[route.from];
+let arrAirport = airports[route.to];
+
+let status="scheduled";
+let depTime=null;
+let arrTime=null;
+
+if(api){
+
+status = api.flight_status;
+
+depTime = api.departure?.scheduled || null;
+arrTime = api.arrival?.scheduled || null;
+
+}
+
+result.push({
+
+number:flight,
+status:status,
+
+departure:{
+airport:{
+name:depAirport.name,
+location:{lat:depAirport.lat,lon:depAirport.lon}
+},
+scheduledTime:{local:depTime}
+},
+
+arrival:{
+airport:{
+name:arrAirport.name,
+location:{lat:arrAirport.lat,lon:arrAirport.lon}
+},
+scheduledTime:{local:arrTime}
+}
+
+});
+
+}
+
+res.json(result);
+
+});
+
+app.get("/journeylog",(req,res)=>{
+res.json(loadLog());
+});
+
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT,()=>{
+console.log("Leni's Flight Tracker running");
+});
+
+setInterval(updateJourneyLog,60000);
